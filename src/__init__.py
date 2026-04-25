@@ -69,7 +69,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 pipeline.fit(X_train, y_train)
 y_pred = pipeline.predict(X_test)
 
-print("\n=== Baseline Logistic Regression ===")
+print("\nBaseline Logistic Regression")
 print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
 print("\nClassification Report:")
 
@@ -84,22 +84,18 @@ def predict_repair_from_row(row):
     pred = pipeline.predict(input_df)[0]
     return class_names[pred]
 
-print("\n" + "="*60)
-print("ВЕРДИКТЫ ДЛЯ ВСЕХ ОБЪЕКТОВ:")
-print("="*60)
+print("\nВЕРДИКТЫ ДЛЯ ВСЕХ ОБЪЕКТОВ:")
 
 df['predicted_repair'] = df[feature_cols].apply(predict_repair_from_row, axis=1)
 
 for idx, row in df.iterrows():
     print(f"{row['filename']:35s} | Истинный: {class_names[row['repair_type']]:15s} | Предсказанный: {row['predicted_repair']}")
 
-print("\n" + "="*60)
-print("СВОДНАЯ СТАТИСТИКА:")
-print("="*60)
+print("\nСВОДНАЯ СТАТИСТИКА:")
 print(df['predicted_repair'].value_counts())
 
-df[['filename', 'repair_type', 'predicted_repair']].to_csv('repair_verdicts.csv', index=False)
-print("\n✅ Результаты сохранены в файл 'repair_verdicts.csv'")
+df[['filename', 'repair_type', 'predicted_repair']].to_csv('B:/ai_prjct/hseml-group-project-minecraftteam/data/repair_verdicts.csv', index=False)
+print("\nРезультаты сохранены в файл 'repair_verdicts.csv'")
 
 if len(numeric_features) > 0 and len(unique_classes) > 1:
     X_num = X[numeric_features]
