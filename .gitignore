@@ -17,8 +17,8 @@ pip-delete-this-directory.txt
 # =============================================================================
 # Virtual environments
 # =============================================================================
-.venv/
-venv/
+.myenv/
+myenv/
 ENV/
 env/
 .env
@@ -101,3 +101,4 @@ ehthumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+data/synthetic_repair_dataset.csv
