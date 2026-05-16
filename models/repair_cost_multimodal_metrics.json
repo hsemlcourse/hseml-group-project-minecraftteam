@@ -1,0 +1,37 @@
+{
+  "dataset": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\data\\room_dataset.csv",
+  "model_path": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\repair_cost_multimodal.joblib",
+  "target_name": "<synthetic_repair_cost>",
+  "target_is_synthetic": true,
+  "text_source_column": "<synthetic_description>",
+  "text_weight": 0.0,
+  "metrics": {
+    "mae": 8254.495662867459,
+    "rmse": 10202.054861445133,
+    "r2": 0.9405149793328642,
+    "mape_percent": 6.874912965682357
+  },
+  "n_rows": 5859,
+  "test_size": 0.2,
+  "random_state": 42,
+  "numeric_features": [
+    "brightness",
+    "contrast",
+    "blur_score",
+    "edge_density",
+    "num_objects",
+    "green_ratio",
+    "color_entropy",
+    "wall_floor_ratio",
+    "light_uniformity",
+    "num_windows",
+    "defect_score",
+    "furniture_count",
+    "furniture_density",
+    "aesthetic_score"
+  ],
+  "categorical_features": [
+    "location",
+    "scene_category"
+  ]
+}
