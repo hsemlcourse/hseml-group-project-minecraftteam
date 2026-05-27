@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: repair-cost-api
+    environment:
+      REPAIR_MODEL_PATH: /app/models/repair_cost_multimodal.joblib
+      REPAIR_METRICS_PATH: /app/models/repair_cost_multimodal_metrics.json
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models:ro
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: repair-cost-ui
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped

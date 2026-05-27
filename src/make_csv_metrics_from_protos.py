@@ -4,11 +4,9 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision
-import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import urllib.request
-from collections import Counter
 import warnings
 warnings.filterwarnings("ignore")
 
