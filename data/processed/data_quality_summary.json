@@ -1,19 +1,15 @@
 {
-  "dataset": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\data\\room_dataset.csv",
-  "model_path": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\repair_cost_multimodal.joblib",
+  "rows_before": 5859,
+  "rows_after": 5859,
+  "columns_before": 17,
+  "columns_after": 24,
+  "duplicates_removed": 0,
+  "missing_values_before": 0,
+  "missing_values_after": 0,
+  "outlier_values_detected": 4431,
   "target_name": "<synthetic_repair_cost>",
   "target_is_synthetic": true,
   "text_source_column": "<synthetic_description>",
-  "text_weight": 0.0,
-  "metrics": {
-    "mae": 8067.019794019578,
-    "rmse": 9971.342334627592,
-    "r2": 0.9431749847603246,
-    "mape_percent": 6.790390678710735
-  },
-  "n_rows": 5859,
-  "test_size": 0.2,
-  "random_state": 42,
   "numeric_features": [
     "brightness",
     "contrast",

@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Sequence
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,8 +20,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
-
-DEFAULT_NUMERIC_FEATURES: List[str] = [
+BASE_NUMERIC_FEATURES: List[str] = [
     "brightness",
     "contrast",
     "blur_score",
@@ -37,6 +37,16 @@ DEFAULT_NUMERIC_FEATURES: List[str] = [
     "aesthetic_score",
 ]
 
+ENGINEERED_NUMERIC_FEATURES: List[str] = [
+    "low_light_defect_interaction",
+    "visual_complexity",
+    "clutter_score",
+    "log_furniture_density",
+    "is_wet_room",
+    "is_outdoor",
+]
+
+DEFAULT_NUMERIC_FEATURES: List[str] = BASE_NUMERIC_FEATURES + ENGINEERED_NUMERIC_FEATURES
 DEFAULT_CATEGORICAL_FEATURES: List[str] = ["location", "scene_category"]
 TEXT_CANDIDATE_COLUMNS: List[str] = ["description", "ad_text", "title", "caption", "comment"]
 TARGET_CANDIDATE_COLUMNS: List[str] = [
@@ -49,6 +59,26 @@ TARGET_CANDIDATE_COLUMNS: List[str] = [
 
 DESCRIPTION_COLUMN = "__description_text__"
 TARGET_COLUMN = "__repair_cost_target__"
+
+
+class IQRClipper(BaseEstimator, TransformerMixin):
+    def __init__(self, multiplier: float = 1.5) -> None:
+        self.multiplier = multiplier
+
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "IQRClipper":
+        values = np.asarray(X, dtype=float)
+        q1 = np.nanpercentile(values, 25, axis=0)
+        q3 = np.nanpercentile(values, 75, axis=0)
+        iqr = q3 - q1
+        self.lower_bounds_ = q1 - self.multiplier * iqr
+        self.upper_bounds_ = q3 + self.multiplier * iqr
+        self.lower_bounds_ = np.where(np.isfinite(self.lower_bounds_), self.lower_bounds_, -np.inf)
+        self.upper_bounds_ = np.where(np.isfinite(self.upper_bounds_), self.upper_bounds_, np.inf)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        values = np.asarray(X, dtype=float)
+        return np.clip(values, self.lower_bounds_, self.upper_bounds_)
 
 
 @dataclass
@@ -73,11 +103,7 @@ def _as_numeric(series: pd.Series) -> pd.Series:
     if pd.api.types.is_numeric_dtype(series):
         return pd.to_numeric(series, errors="coerce")
 
-    cleaned = (
-        series.astype(str)
-        .str.replace(r"[^\d,\.\-]", "", regex=True)
-        .str.replace(",", ".", regex=False)
-    )
+    cleaned = series.astype(str).str.replace(r"[^\d,\.\-]", "", regex=True).str.replace(",", ".", regex=False)
     return pd.to_numeric(cleaned, errors="coerce")
 
 
@@ -111,6 +137,25 @@ def _safe_numeric_column(df: pd.DataFrame, column: str, default: float = 0.0) ->
         return pd.Series(default, index=df.index, dtype=float)
     numeric = _as_numeric(df[column]).fillna(default).astype(float)
     return numeric
+
+
+def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    local_df = df.copy()
+
+    for feature in BASE_NUMERIC_FEATURES:
+        local_df[feature] = _safe_numeric_column(local_df, feature)
+
+    location = local_df.get("location", pd.Series("unknown", index=local_df.index)).astype(str).str.lower()
+    low_light = 1.0 - local_df["light_uniformity"].clip(0.0, 1.0)
+
+    local_df["low_light_defect_interaction"] = low_light * local_df["defect_score"].clip(0.0, 1.0)
+    local_df["visual_complexity"] = local_df["edge_density"].clip(lower=0.0) * local_df["color_entropy"].clip(lower=0.0)
+    local_df["clutter_score"] = local_df["num_objects"].clip(lower=0.0) + local_df["furniture_count"].clip(lower=0.0)
+    local_df["log_furniture_density"] = np.log1p(local_df["furniture_density"].clip(lower=0.0))
+    local_df["is_wet_room"] = location.isin(["bathroom", "kitchen"]).astype(float)
+    local_df["is_outdoor"] = location.isin(["frontyard", "backyard"]).astype(float)
+
+    return local_df
 
 
 def _synthesize_description(df: pd.DataFrame) -> pd.Series:
@@ -223,7 +268,7 @@ def prepare_training_data(
 ) -> DataBundle:
     numeric_features = list(numeric_features or DEFAULT_NUMERIC_FEATURES)
     categorical_features = list(categorical_features or DEFAULT_CATEGORICAL_FEATURES)
-    local_df = df.copy()
+    local_df = add_engineered_features(df)
 
     for feature in numeric_features:
         local_df[feature] = _safe_numeric_column(local_df, feature)
@@ -280,7 +325,7 @@ def prepare_inference_data(
     categorical_features: Sequence[str],
     text_column: Optional[str] = None,
 ) -> pd.DataFrame:
-    local_df = df.copy()
+    local_df = add_engineered_features(df)
 
     for feature in numeric_features:
         local_df[feature] = _safe_numeric_column(local_df, feature)
@@ -330,7 +375,12 @@ class RepairCostEnsembleModel:
         self.text_source_column: str = "<unknown>"
 
     def _build_tabular_pipeline(self) -> Pipeline:
-        numeric_pipeline = Pipeline(steps=[("imputer", SimpleImputer(strategy="median"))])
+        numeric_pipeline = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("iqr_clipper", IQRClipper(multiplier=1.5)),
+            ]
+        )
         categorical_pipeline = Pipeline(
             steps=[
                 ("imputer", SimpleImputer(strategy="most_frequent")),

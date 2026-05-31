@@ -1,0 +1,2 @@
+model,feature_set,dimensionality_reduction,params,val_mae,val_rmse,val_r2,val_mape_percent,test_mae,test_rmse,test_r2,test_mape_percent
+Ridge_PCA_engineered,engineered_features,PCA(10),{},9549.862552594312,12071.001801369188,0.913151718134161,7.695800025147776,9530.711626933413,12027.817438644397,0.9147414588608654,7.526533485444318

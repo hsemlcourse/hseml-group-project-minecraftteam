@@ -1,0 +1,135 @@
+{
+  "dataset": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\data\\room_dataset.csv",
+  "clean_dataset": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\data\\processed\\room_dataset_clean.csv",
+  "data_quality_summary": {
+    "rows_before": 5859,
+    "rows_after": 5859,
+    "columns_before": 17,
+    "columns_after": 24,
+    "duplicates_removed": 0,
+    "missing_values_before": 0,
+    "missing_values_after": 0,
+    "outlier_values_detected": 4431,
+    "target_name": "<synthetic_repair_cost>",
+    "target_is_synthetic": true,
+    "text_source_column": "<synthetic_description>",
+    "numeric_features": [
+      "brightness",
+      "contrast",
+      "blur_score",
+      "edge_density",
+      "num_objects",
+      "green_ratio",
+      "color_entropy",
+      "wall_floor_ratio",
+      "light_uniformity",
+      "num_windows",
+      "defect_score",
+      "furniture_count",
+      "furniture_density",
+      "aesthetic_score",
+      "low_light_defect_interaction",
+      "visual_complexity",
+      "clutter_score",
+      "log_furniture_density",
+      "is_wet_room",
+      "is_outdoor"
+    ],
+    "categorical_features": [
+      "location",
+      "scene_category"
+    ]
+  },
+  "split": {
+    "train_rows": 4101,
+    "validation_rows": 879,
+    "test_rows": 879,
+    "random_state": 42,
+    "stratified_by": "location"
+  },
+  "best_experiment": {
+    "model": "HistGradientBoosting_engineered",
+    "feature_set": "engineered_features",
+    "dimensionality_reduction": "none",
+    "params": "{\"learning_rate\": 0.05, \"max_iter\": 180, \"max_leaf_nodes\": 31}",
+    "val_mae": 7972.645511274137,
+    "val_rmse": 10079.142553467125,
+    "val_r2": 0.9394489362733776,
+    "val_mape_percent": 6.588673560803726,
+    "test_mae": 7702.731887829522,
+    "test_rmse": 9614.223629715885,
+    "test_r2": 0.9455255716711713,
+    "test_mape_percent": 6.214456452583889
+  },
+  "best_test_metrics": {
+    "mae": 7702.731887829522,
+    "rmse": 9614.223629715885,
+    "r2": 0.9455255716711713,
+    "mape_percent": 6.214456452583889
+  },
+  "top_features": [
+    {
+      "feature": "furniture_density",
+      "mae_increase_mean": 9990.384160803103,
+      "mae_increase_std": 746.8092292349439
+    },
+    {
+      "feature": "clutter_score",
+      "mae_increase_mean": 9643.342723412494,
+      "mae_increase_std": 602.0658106282059
+    },
+    {
+      "feature": "is_wet_room",
+      "mae_increase_mean": 5742.878765861503,
+      "mae_increase_std": 387.50055058643386
+    },
+    {
+      "feature": "num_windows",
+      "mae_increase_mean": 4144.363610306975,
+      "mae_increase_std": 93.65866626344443
+    },
+    {
+      "feature": "low_light_defect_interaction",
+      "mae_increase_mean": 3236.8330950366953,
+      "mae_increase_std": 103.2407575993404
+    },
+    {
+      "feature": "location",
+      "mae_increase_mean": 2284.6492287883893,
+      "mae_increase_std": 226.2522621136997
+    },
+    {
+      "feature": "is_outdoor",
+      "mae_increase_mean": 1427.4763531850274,
+      "mae_increase_std": 80.06733026898009
+    },
+    {
+      "feature": "light_uniformity",
+      "mae_increase_mean": 790.5304623196405,
+      "mae_increase_std": 69.75520258313158
+    },
+    {
+      "feature": "aesthetic_score",
+      "mae_increase_mean": 738.866347882592,
+      "mae_increase_std": 79.25481298145192
+    },
+    {
+      "feature": "defect_score",
+      "mae_increase_mean": 243.6976750146905,
+      "mae_increase_std": 15.496613677915164
+    }
+  ],
+  "artifacts": {
+    "experiment_results": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\experiment_results.csv",
+    "pca_experiment": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\pca_experiment.csv",
+    "best_model": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\best_experiment_model.joblib",
+    "feature_importance": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\models\\feature_importance.csv",
+    "images": {
+      "target_distribution": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\report\\images\\target_distribution.png",
+      "correlation_heatmap": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\report\\images\\feature_correlation_heatmap.png",
+      "pca_projection": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\report\\images\\pca_projection.png",
+      "feature_importance": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\report\\images\\feature_importance.png",
+      "model_comparison": "B:\\ai_prjct\\hseml-group-project-minecraftteam\\report\\images\\model_comparison.png"
+    }
+  }
+}

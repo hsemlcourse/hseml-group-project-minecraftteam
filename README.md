@@ -1,129 +1,154 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/kOqwghv0)
-# ML Project — [Название проекта]
+# Предсказание стоимости ремонта по фото комнаты
 
-**Студент:** [Соснин Артём Олегович]
-**Студент:** [Рогачев Глеб Игоревич]
+Студенты: Рогачев Глеб Игоревич, Соснин Артем Олегович  
+Группа: БИВ234
 
-**Группа:** [БИВ234]
+Проект оценивает стоимость ремонта по признакам, извлеченным из фотографий комнат. Основной пайплайн работает с
+`data/room_dataset.csv`, обучает регрессионные модели и сохраняет предсказания в `data/repair_verdicts.csv`.
 
+## Данные
 
-## Оглавление
+Источник данных - локальный набор фотографий комнат в `data/photo/`, разложенный по типам помещений:
+`bathroom`, `kitchen`, `bedroom`, `livingRoom`, `frontyard`, `backyard`. Его выбрали, потому что он содержит
+разные типы комнат, освещения, мебели и визуальной сложности, то есть признаки, связанные с объемом ремонта.
 
-1. Описание задачи (оценка стоимости ремонта по фото и описанию с Avito)
-2. Структура репозитория (где код парсинга, признаки, модели и результаты)
-3. Запуски (как обучить модель и сгенерировать `data/repair_verdicts.csv`)
-4. Данные (фото, текст объявлений и табличные признаки состояния)
-5. Результаты (CSV с предсказаниями: `data/repair_verdicts.csv`)
-7. Отчёт (итоговый файл: `report/report.md`)
+Самостоятельный парсинг реализован в `src/make_csv_metrics_from_protos.py`: скрипт проходит по изображениям,
+извлекает базовые CV-признаки, категорию сцены через Places365 и количество объектов через Faster R-CNN.
 
+Итоговый датасет:
 
-## Описание задачи
+- `data/room_dataset.csv`: 5859 строк, 17 исходных столбцов.
+- `data/processed/room_dataset_clean.csv`: 5859 строк, 24 столбца после feature engineering.
+- Пропуски: 0 до и после очистки.
+- Дубли: 0.
+- Выбросы: 4431 значения обнаружены IQR-правилом; clipping применяется внутри sklearn pipeline только на train.
+- Целевой столбец: `<synthetic_repair_cost>`, детерминированный proxy target, потому что в image dataset нет явной цены.
 
-**Тема проекта:** «Предсказание стоимости ремонта квартиры по фотографиям и описанию с Avito».
+Основные признаки: яркость, контраст, blur score, edge density, число объектов, доля зеленого цвета, entropy,
+равномерность света, окна, defect score, количество и плотность мебели, aesthetic score, тип комнаты и scene category.
 
-**Участники:** Рогачев Глеб Игоревич (БИВ234), Соснин Артем Олегович (БИВ234).
+Добавленные признаки:
 
-**Описание:** пользователи выкладывают фото «страшной» комнаты и просят оценить стоимость косметического/капитального ремонта. Нужно спарсить объявления с услугами ремонта или готовые кейсы «до/после», где указана итоговая цена.
+- `low_light_defect_interaction` - взаимодействие плохого освещения и дефектов.
+- `visual_complexity` - edge density * color entropy.
+- `clutter_score` - сумма объектов и мебели.
+- `log_furniture_density` - логарифм плотности мебели.
+- `is_wet_room`, `is_outdoor` - бинарные признаки типа помещения.
 
-**Причина добавления участников:** сложная задача, требующая одновременно обработки изображений и табличных данных.
+## Метрики
 
-**Разделение ролей:**
-- Рогачев: пишет парсер, собирает изображения, чистит текст.
-- Соснин: находит предобученную модель для извлечения данных из картинок, обучает XGBoost на объединенных данных.
+Главная метрика - MAE в рублях: она прямо показывает среднюю ошибку сметы и менее чувствительна к редким дорогим
+ремонтам. RMSE используется как дополнительная метрика для крупных промахов, R2 - для объясненной дисперсии,
+MAPE - для относительной ошибки. При выборе финальной модели приоритет отдается validation MAE.
 
+## Эксперименты
 
-## Структура репозитория
-Опишите структуру проекта, сохранив при этом верхнеуровневые папки. Можно добавить новые при необходимости.
-```
+Сплит фиксированный и воспроизводимый: 4101 train, 879 validation, 879 test, `random_state=42`, стратификация по
+`location`. Data leakage избегается так: дубли удаляются до сплита, целевой столбец и предсказания не используются
+как признаки, а imputer/scaler/IQR clipping/encoder обучаются внутри pipeline только на train.
+
+| Модель | Feature set | Dim reduction | Параметры | Val MAE | Test MAE | Test RMSE | Test R2 | Test MAPE |
+|---|---|---|---|---:|---:|---:|---:|---:|
+| HistGradientBoosting | engineered | none | learning_rate=0.05, max_iter=180, max_leaf_nodes=31 | 7972.65 | 7702.73 | 9614.22 | 0.9455 | 6.21% |
+| Voting ensemble | engineered | none | RF + ExtraTrees + HGB | 7995.42 | 7869.50 | 9964.28 | 0.9415 | 6.35% |
+| ExtraTrees | engineered | none | n_estimators=80, min_samples_leaf=4 | 8105.45 | 8016.45 | 10205.55 | 0.9386 | 6.45% |
+| Ridge | engineered | none | alpha=30 | 8205.31 | 7805.44 | 9831.82 | 0.9430 | 6.23% |
+| RandomForest | engineered | none | n_estimators=80, max_depth=16 | 8728.84 | 8644.62 | 11152.02 | 0.9267 | 6.93% |
+| LinearRegression baseline | no FE | none | out of the box | 9114.52 | 8756.30 | 10954.91 | 0.9293 | 6.94% |
+| KNN | engineered | none | n_neighbors=15, weights=distance | 9529.73 | 9265.65 | 11803.28 | 0.9179 | 7.30% |
+| Ridge + PCA | engineered | PCA(10) | alpha=10 | 9549.86 | 9530.71 | 12027.82 | 0.9147 | 7.53% |
+| Dummy baseline | no FE | none | mean target | 33724.12 | 34009.10 | 41206.82 | -0.0007 | 28.08% |
+
+Финальная модель по validation MAE - `HistGradientBoosting_engineered`. PCA-вариант оказался хуже, поэтому
+уменьшение размерности оставлено как диагностический эксперимент, а не как финальный пайплайн.
+
+Основной CLI-пайплайн `src/repair_cost_cli.py train` после обновления признаков дает:
+
+- MAE: 8067.02
+- RMSE: 9971.34
+- R2: 0.9432
+- MAPE: 6.79%
+
+## Визуализации и артефакты
+
+- `report/images/target_distribution.png` - распределение target.
+- `report/images/feature_correlation_heatmap.png` - корреляции числовых признаков.
+- `report/images/pca_projection.png` - 2D PCA-проекция признаков.
+- `report/images/model_comparison.png` - сравнение моделей по validation MAE.
+- `report/images/feature_importance.png` - permutation importance финальной модели.
+- `models/experiment_results.csv` - полная таблица экспериментов.
+- `models/feature_importance.csv` - важность признаков.
+- `models/best_experiment_metrics.json` - split, лучшая модель и итоговые метрики.
+
+Топ признаков по permutation importance: `furniture_density`, `clutter_score`, `is_wet_room`, `num_windows`,
+`low_light_defect_interaction`, `location`.
+
+## Структура
+
+```text
 .
-├── data
-│   ├── processed               
-│   ├── raw 
-│   └── photo                   # папка с датасетом фотографий
-├── models                      # Сохранённые модели 
-├── notebooks
-│   ├── 01_eda.ipynb            # EDA
-│   ├── 02_baseline.ipynb       # Baseline-модель
-│   └── 03_experiments.ipynb    # Эксперименты и ablation study
-├── presentation                # Презентация для защиты
-├── report
-│   ├── images                  # Изображения для отчёта
-│   └── report.md               # Финальный отчёт
-├── src
-│   ├── __init__.py             # основной файл выдающий вердикт на основе csv датасета с параметрами на основе датасета с фотографиями
-│   └── make_csv_metrics_from_protos.py # Сосздание файла csv с параметрами описывающими фотографии
-├── tests
-│   └── test.py                 # Тесты пайплайна
-├── requirements.txt
-└── README.md
+├── data/
+│   ├── photo/                         # исходные изображения
+│   ├── processed/                     # очищенный датасет и data quality summary
+│   ├── room_dataset.csv               # CSV с image-derived признаками
+│   └── repair_verdicts.csv            # предсказания CLI
+├── docs/                              # служебные материалы и исходный фидбек
+├── models/                            # метрики, таблицы экспериментов, feature importance
+├── report/
+│   ├── images/                        # графики для отчета
+│   └── report.md                      # финальный отчет
+├── src/
+│   ├── make_csv_metrics_from_protos.py
+│   ├── repair_cost_cli.py
+│   ├── repair_cost_experiments.py
+│   └── repair_cost_model.py
+├── tests/
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+├── pyproject.toml
+└── requirements.txt
 ```
-
-## Описание датасета
-
-1. filename — идентификатор исходного файла изображения.
-
-2. location — ручная метка папки, указывающая тип помещения.
-
-3. scene_category — тип сцены, автоматически распознанный нейросетью (например, ванная или кухня).
-
-4. brightness — средняя яркость фото (чем темнее, тем больше потребуется работ по освещению).
-
-5. contrast — контрастность, указывающая на неравномерность естественного света.
-
-6. blur_score — степень размытости (высокая может говорить о проблемах с вентиляцией или плохом фото).
-
-7. edge_density — насыщенность мелкими деталями и текстурами (чем выше, тем сложнее отделка).
-
-8. num_objects — общее количество любых обнаруженных предметов.
-
-9. green_ratio — доля зелёного цвета, критичная для ландшафтных работ во дворе.
-
-10. color_entropy — цветовое разнообразие помещения (пёстрое или монохромное).
-
-11. wall_floor_ratio — отношение площади стен к полу, показывающее высоту потолков.
-
-12. light_uniformity — равномерность освещения (низкая требует установки дополнительных светильников).
-
-13. num_windows — количество окон, напрямую влияющее на замену стеклопакетов и откосов.
-
-14. defect_score — оценка наличия трещин и сколов, главный индикатор износа и дорогого ремонта.
-
-15. furniture_count — количество предметов мебели (чем больше, тем дороже демонтаж).
-
-16. furniture_density — плотность мебели на пиксель, показывающая заставленность маленькой комнаты.
-
-17. aesthetic_score — субъективная эстетичность фото, косвенно указывающая на дорогой дизайн.
 
 ## Запуск
 
-Этот блок замените способом запуска вашего сервиса.
 ```bash
-# 1. Клонировать репозиторий
-git clone <url>
-cd <repo-name>
-
-# 2. Создать виртуальное окружение
 python -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-# .venv\Scripts\activate    # Windows
-
-# 3. Установить зависимости
-pip install -r requirements.txt
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
 ```
 
-## Данные
-- `data/raw/` — исходные файлы
-- `data/processed/` — предобработанные данные
+Команды:
 
+```bash
+python src/repair_cost_experiments.py
+python src/repair_cost_cli.py train
+python src/repair_cost_cli.py predict
+python -m ruff check src tests
+python -m flake8 src tests
+python -m pytest -q
+```
 
-## Результаты
-Здесь коротко выпишите результаты.
-| Модель | [Метрика 1] | [Метрика 2] | Примечание |
-|--------|-------------|-------------|------------|
-| Baseline | — | — | |
-| Лучшая модель | — | — | |
+Через Makefile:
 
+```bash
+make lint
+make precommit
+make test
+make experiments
+make train
+make predict
+```
 
-## Отчёт
+Для автоматической проверки перед коммитом:
 
-Финальный отчёт: [`report/report.md`](report/report.md)
+```bash
+pre-commit install
+pre-commit run --all-files
+```
+
+Через Docker:
+
+```bash
+docker compose up --build
+```

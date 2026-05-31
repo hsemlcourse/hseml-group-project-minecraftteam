@@ -1,0 +1,7 @@
+services:
+  repair-cost:
+    build: .
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: python src/repair_cost_experiments.py

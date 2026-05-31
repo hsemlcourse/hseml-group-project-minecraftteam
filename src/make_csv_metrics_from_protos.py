@@ -1,15 +1,15 @@
 import os
+import urllib.request
+import warnings
+
 import cv2
 import numpy as np
 import pandas as pd
 import torch
 import torchvision
-import torch.nn as nn
-from torchvision import models, transforms
 from PIL import Image
-import urllib.request
-from collections import Counter
-import warnings
+from torchvision import models, transforms
+
 warnings.filterwarnings("ignore")
 
 
@@ -46,41 +46,45 @@ def compute_color_entropy(image_cv):
 places_model = None
 places_categories = None
 
+
 def download_file(url, dest):
     if not os.path.exists(dest):
         print(f"Скачивание {dest}...")
         urllib.request.urlretrieve(url, dest)
         print("Готово.")
 
+
 def load_places_model():
     global places_model, places_categories
     if places_model is None:
-        labels_url = 'https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt'
-        labels_file = 'categories_places365.txt'
+        labels_url = "https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt"
+        labels_file = "categories_places365.txt"
         download_file(labels_url, labels_file)
-        with open(labels_file, 'r') as f:
-            places_categories = [line.strip().split(' ')[0][3:] for line in f]
+        with open(labels_file, "r") as f:
+            places_categories = [line.strip().split(" ")[0][3:] for line in f]
 
-        weights_url = 'http://places2.csail.mit.edu/models_places365/resnet18_places365.pth.tar'
-        weights_file = 'resnet18_places365.pth.tar'
+        weights_url = "http://places2.csail.mit.edu/models_places365/resnet18_places365.pth.tar"
+        weights_file = "resnet18_places365.pth.tar"
         download_file(weights_url, weights_file)
 
         model = models.resnet18(num_classes=365)
-        checkpoint = torch.load(weights_file, map_location='cpu')
-        state_dict = {k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()}
+        checkpoint = torch.load(weights_file, map_location="cpu")
+        state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
         model.load_state_dict(state_dict, strict=True)
         model.eval()
         places_model = model
     return places_model
 
+
 def get_scene_label(image_pil, model):
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
     input_tensor = transform(image_pil).unsqueeze(0)
     with torch.no_grad():
         output = model(input_tensor)
@@ -94,40 +98,58 @@ def load_detection_model():
     model.eval()
     return model
 
+
 FURNITURE_CLASSES = {
-    56: 'chair', 57: 'couch', 58: 'potted plant', 59: 'bed',
-    60: 'dining table', 61: 'toilet', 62: 'tv', 63: 'laptop',
-    64: 'mouse', 65: 'remote', 66: 'keyboard', 67: 'cell phone',
-    72: 'refrigerator', 73: 'oven', 74: 'sink', 75: 'microwave',
-    76: 'toaster', 77: 'hair drier', 78: 'toothbrush'
+    56: "chair",
+    57: "couch",
+    58: "potted plant",
+    59: "bed",
+    60: "dining table",
+    61: "toilet",
+    62: "tv",
+    63: "laptop",
+    64: "mouse",
+    65: "remote",
+    66: "keyboard",
+    67: "cell phone",
+    72: "refrigerator",
+    73: "oven",
+    74: "sink",
+    75: "microwave",
+    76: "toaster",
+    77: "hair drier",
+    78: "toothbrush",
 }
+
 
 def count_furniture_items(predictions, score_thresh=0.5):
     """Возвращает количество объектов мебели (сумма по всем классам мебели)."""
-    boxes = predictions['boxes']
-    scores = predictions['scores']
-    labels = predictions['labels']
+    boxes = predictions["boxes"]
+    scores = predictions["scores"]
+    labels = predictions["labels"]
     count = 0
     for box, score, label in zip(boxes, scores, labels):
         if score > score_thresh and label.item() in FURNITURE_CLASSES:
             count += 1
     return count
 
+
 def count_objects_general(predictions, score_thresh=0.5):
     """Общее количество любых объектов (для обратной совместимости)."""
-    scores = predictions['scores']
+    scores = predictions["scores"]
     return int((scores > score_thresh).sum().item())
 
 
 def estimate_wall_floor_ratio(image_cv):
     """Отношение площади стен к полу (упрощённо: верхние 70% / нижние 30%)."""
     h, w = image_cv.shape[:2]
-    floor_region = image_cv[int(h*0.7):, :]
-    wall_region = image_cv[:int(h*0.7), :]
+    floor_region = image_cv[int(h * 0.7) :, :]
+    wall_region = image_cv[: int(h * 0.7), :]
     wall_pixels = wall_region.size
     floor_pixels = floor_region.size
     ratio = wall_pixels / (floor_pixels + 1)
     return np.clip(ratio, 0, 10)
+
 
 def compute_light_uniformity(image_cv):
     """Равномерность освещения: 1 - (std / mean) нормализованно."""
@@ -138,6 +160,7 @@ def compute_light_uniformity(image_cv):
         return 1.0
     uniformity = 1 - (std / (mean + 1e-6))
     return np.clip(uniformity, 0, 1)
+
 
 def detect_windows_simple(image_cv):
     """Грубое детектирование окон по ярким прямоугольным областям."""
@@ -154,6 +177,7 @@ def detect_windows_simple(image_cv):
             windows += 1
     return windows
 
+
 def compute_defect_score(image_cv):
     """
     Простой дефект-скоринг на основе градиентов в тёмных областях.
@@ -163,11 +187,12 @@ def compute_defect_score(image_cv):
     grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     grad_mag = np.sqrt(grad_x**2 + grad_y**2)
-    grad_mag = grad_mag / grad_mag.max() 
+    grad_mag = grad_mag / grad_mag.max()
     dark_mask = gray < 80
     defect_mask = (grad_mag > 0.3) & dark_mask
     defect_ratio = np.sum(defect_mask) / (gray.shape[0] * gray.shape[1])
     return np.clip(defect_ratio * 5, 0, 1)  # макс 1
+
 
 def compute_furniture_density(num_furniture, area_pixels):
     """Плотность мебели = количество мебели / (площадь изображения в млн пикселей)."""
@@ -178,7 +203,7 @@ def analyze_photo(image_path, location_name, scene_model, detection_model):
     image_cv = cv2.imread(image_path)
     if image_cv is None:
         raise ValueError(f"Не удалось загрузить: {image_path}")
-    image_pil = Image.open(image_path).convert('RGB')
+    image_pil = Image.open(image_path).convert("RGB")
 
     filename = os.path.basename(image_path)
     scene_label, _ = get_scene_label(image_pil, scene_model)
@@ -203,42 +228,40 @@ def analyze_photo(image_path, location_name, scene_model, detection_model):
     aesthetic = compute_aesthetic_score(brightness, blur_score, edge_density, green_ratio)
 
     return {
-        'filename': filename,
-        'location': location_name,
-        'scene_category': scene_label,
-        'brightness': round(brightness, 4),
-        'contrast': round(contrast, 4),
-        'blur_score': round(blur_score, 4),
-        'edge_density': round(edge_density, 4),
-        'num_objects': num_total_objects,
-        'green_ratio': round(green_ratio, 4),
-        'color_entropy': round(color_entropy, 4),
-        'wall_floor_ratio': round(wall_floor_ratio, 4),
-        'light_uniformity': round(light_uniformity, 4),
-        'num_windows': num_windows,
-        'defect_score': round(defect_score, 4),
-        'furniture_count': num_furniture,
-        'furniture_density': round(furniture_density, 4),
-        'aesthetic_score': round(aesthetic, 4)
+        "filename": filename,
+        "location": location_name,
+        "scene_category": scene_label,
+        "brightness": round(brightness, 4),
+        "contrast": round(contrast, 4),
+        "blur_score": round(blur_score, 4),
+        "edge_density": round(edge_density, 4),
+        "num_objects": num_total_objects,
+        "green_ratio": round(green_ratio, 4),
+        "color_entropy": round(color_entropy, 4),
+        "wall_floor_ratio": round(wall_floor_ratio, 4),
+        "light_uniformity": round(light_uniformity, 4),
+        "num_windows": num_windows,
+        "defect_score": round(defect_score, 4),
+        "furniture_count": num_furniture,
+        "furniture_density": round(furniture_density, 4),
+        "aesthetic_score": round(aesthetic, 4),
     }
 
+
 def compute_aesthetic_score(brightness, blur_score, edge_density, green_ratio):
-    score = (brightness * 0.4 +
-             (1 - blur_score) * 0.3 +
-             (1 - min(edge_density, 0.3)) * 0.2 +
-             green_ratio * 0.1)
+    score = brightness * 0.4 + (1 - blur_score) * 0.3 + (1 - min(edge_density, 0.3)) * 0.2 + green_ratio * 0.1
     return min(max(score, 0), 1)
 
 
-def build_dataset_from_images(root_folder, output_csv='dataset.csv'):
+def build_dataset_from_images(root_folder, output_csv="dataset.csv"):
     scene_model = load_places_model()
     detection_model = load_detection_model()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_model.to(device)
     detection_model.to(device)
 
     data_rows = []
-    supported_ext = ('.jpg', '.jpeg', '.png', '.bmp')
+    supported_ext = (".jpg", ".jpeg", ".png", ".bmp")
 
     for location_name in os.listdir(root_folder):
         location_path = os.path.join(root_folder, location_name)
@@ -269,7 +292,10 @@ if __name__ == "__main__":
     ROOT_FOLDER = "./photos_example"
     if not os.path.exists(ROOT_FOLDER):
         os.makedirs(ROOT_FOLDER)
-        print(f"Создана папка {ROOT_FOLDER}. Внутри неё создайте подпапки (backyard, bathroom и т.д.) и поместите туда фото.")
+        print(
+            f"Создана папка {ROOT_FOLDER}. Внутри неё создайте подпапки "
+            "(backyard, bathroom и т.д.) и поместите туда фото."
+        )
     else:
         dataset = build_dataset_from_images(ROOT_FOLDER, "room_dataset.csv")
         if dataset is not None:

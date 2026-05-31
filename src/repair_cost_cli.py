@@ -45,8 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="repair-cost",
         description=(
-            "Multimodal repair cost estimator: uses image-derived CSV metrics "
-            "plus text description when available."
+            "Multimodal repair cost estimator: uses image-derived CSV metrics plus text description when available."
         ),
     )
     subparsers = parser.add_subparsers(dest="command")
